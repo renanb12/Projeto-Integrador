@@ -1,3 +1,3 @@
-export class Aba3d{
+export class Scanner{
     
 }
