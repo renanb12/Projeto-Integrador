@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, ArrowDownToLine, ArrowUpFromLine, History, X } from 'lucide-react';
+import { Home, Package, ArrowDownToLine, ArrowUpFromLine, Users, Truck, UserCog, Settings, History, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -10,17 +10,27 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
 
+  const menuItems = [
+    { path: '/dashboard', icon: Home, label: 'Dashboard' },
+    { path: '/entries', icon: ArrowDownToLine, label: 'Entradas' },
+    { path: '/exits', icon: ArrowUpFromLine, label: 'Saídas' },
+    { path: '/customers', icon: Users, label: 'Clientes' },
+    { path: '/inventory', icon: Package, label: 'Estoque' },
+    { path: '/deliveries', icon: Truck, label: 'Entregas' },
+    { path: '/users', icon: UserCog, label: 'Usuários' },
+    { path: '/history', icon: History, label: 'Histórico' },
+    { path: '/settings', icon: Settings, label: 'Configurações' }
+  ];
+
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
       <nav className={`
         fixed md:sticky top-0 h-full w-64 bg-gray-900 text-white p-4
         transform ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -37,54 +47,20 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div>
           <h2 className="text-xs uppercase text-gray-400 mb-4">Navegação</h2>
           <ul className="space-y-2">
-            <li>
-              <Link
-                to="/"
-                onClick={onClose}
-                className={`flex items-center gap-3 p-2 rounded ${
-                  location.pathname === '/' ? 'bg-gray-800' : 'hover:bg-gray-800'
-                }`}
-              >
-                <Package className="w-5 h-5" />
-                <span>Produtos</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/entries"
-                onClick={onClose}
-                className={`flex items-center gap-3 p-2 rounded ${
-                  location.pathname === '/entries' ? 'bg-gray-800' : 'hover:bg-gray-800'
-                }`}
-              >
-                <ArrowDownToLine className="w-5 h-5" />
-                <span>Entradas</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/exits"
-                onClick={onClose}
-                className={`flex items-center gap-3 p-2 rounded ${
-                  location.pathname === '/exits' ? 'bg-gray-800' : 'hover:bg-gray-800'
-                }`}
-              >
-                <ArrowUpFromLine className="w-5 h-5" />
-                <span>Saídas</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/history"
-                onClick={onClose}
-                className={`flex items-center gap-3 p-2 rounded ${
-                  location.pathname === '/history' ? 'bg-gray-800' : 'hover:bg-gray-800'
-                }`}
-              >
-                <History className="w-5 h-5" />
-                <span>Histórico</span>
-              </Link>
-            </li>
+            {menuItems.map((item) => (
+              <li key={item.path}>
+                <Link
+                  to={item.path}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 p-2 rounded transition-colors ${
+                    location.pathname === item.path ? 'bg-gray-800' : 'hover:bg-gray-800'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
       </nav>
