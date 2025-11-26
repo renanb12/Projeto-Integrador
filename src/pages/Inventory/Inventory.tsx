@@ -5,22 +5,27 @@ import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Table } from '../../components/common/Table';
 import { StatCard } from '../../components/common/StatCard';
+import { ProductModal } from '../../components/ProductModal/ProductModal';
+import api from '../../services/api';
 
-interface InventoryItem {
+interface Product {
   id: string;
   name: string;
   category: string;
   stock: number;
-  unit: string;
+  type: string;
   price: number;
-  location: string;
-  status: 'available' | 'low' | 'out';
+  purchase_price?: number;
+  location?: string;
+  barcode?: string;
 }
 
 export function Inventory() {
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventory, setInventory] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     loadInventory();
@@ -29,42 +34,45 @@ export function Inventory() {
   const loadInventory = async () => {
     try {
       setLoading(true);
-      setInventory([
-        {
-          id: '1',
-          name: 'Picanha',
-          category: 'Carne Bovina',
-          stock: 150,
-          unit: 'KG',
-          price: 65.90,
-          location: 'Câmara Fria 1',
-          status: 'available'
-        },
-        {
-          id: '2',
-          name: 'Alcatra',
-          category: 'Carne Bovina',
-          stock: 20,
-          unit: 'KG',
-          price: 45.90,
-          location: 'Câmara Fria 1',
-          status: 'low'
-        },
-        {
-          id: '3',
-          name: 'Costela',
-          category: 'Carne Bovina',
-          stock: 0,
-          unit: 'KG',
-          price: 35.90,
-          location: 'Câmara Fria 2',
-          status: 'out'
-        }
-      ]);
+      const response = await api.get('/products');
+      setInventory(response.data.products || response.data);
     } catch (error) {
       console.error('Error loading inventory:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSave = async (productData: any) => {
+    try {
+      if (selectedProduct) {
+        await api.put(`/products/${selectedProduct.id}`, productData);
+      } else {
+        await api.post('/products', productData);
+      }
+      await loadInventory();
+      setIsModalOpen(false);
+      setSelectedProduct(null);
+    } catch (error: any) {
+      console.error('Error saving product:', error);
+      throw new Error(error.response?.data?.message || 'Erro ao salvar produto');
+    }
+  };
+
+  const handleEdit = (product: Product) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este produto?')) {
+      try {
+        await api.delete(`/products/${id}`);
+        await loadInventory();
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        alert('Erro ao excluir produto');
+      }
     }
   };
 
@@ -73,14 +81,21 @@ export function Inventory() {
     item.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const stats = {
-    total: inventory.length,
-    available: inventory.filter(i => i.status === 'available').length,
-    low: inventory.filter(i => i.status === 'low').length,
-    out: inventory.filter(i => i.status === 'out').length
+  const getStatus = (stock: number) => {
+    if (stock === 0) return 'out';
+    if (stock < 50) return 'low';
+    return 'available';
   };
 
-  const getStatusBadge = (status: string) => {
+  const stats = {
+    total: inventory.length,
+    available: inventory.filter(i => getStatus(i.stock) === 'available').length,
+    low: inventory.filter(i => getStatus(i.stock) === 'low').length,
+    out: inventory.filter(i => getStatus(i.stock) === 'out').length
+  };
+
+  const getStatusBadge = (stock: number) => {
+    const status = getStatus(stock);
     const badges = {
       available: <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Disponível</span>,
       low: <span className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded">Baixo</span>,
@@ -95,16 +110,20 @@ export function Inventory() {
     {
       key: 'stock',
       label: 'Estoque',
-      render: (value: any, row: InventoryItem) => `${value} ${row.unit}`
+      render: (value: any, row: Product) => `${value} ${row.type}`
     },
     {
       key: 'price',
       label: 'Preço',
-      render: (value: any) => `R$ ${value.toFixed(2)}`
+      render: (value: any) => `R$ ${Number(value).toFixed(2)}`
     },
-    { key: 'location', label: 'Localização' },
     {
-      key: 'status',
+      key: 'location',
+      label: 'Localização',
+      render: (value: any) => value || '-'
+    },
+    {
+      key: 'stock',
       label: 'Status',
       render: (value: any) => getStatusBadge(value)
     },
@@ -112,12 +131,24 @@ export function Inventory() {
       key: 'actions',
       label: 'Ações',
       className: 'text-right',
-      render: () => (
+      render: (_: any, row: Product) => (
         <div className="flex gap-2 justify-end">
-          <button className="text-blue-600 hover:text-blue-800">
+          <button
+            className="text-blue-600 hover:text-blue-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row);
+            }}
+          >
             <Edit className="w-5 h-5" />
           </button>
-          <button className="text-red-600 hover:text-red-800">
+          <button
+            className="text-red-600 hover:text-red-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row.id);
+            }}
+          >
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
@@ -131,7 +162,10 @@ export function Inventory() {
         title="Estoque"
         subtitle={`${inventory.length} produtos em estoque`}
         action={
-          <Button icon={Plus} onClick={() => {}}>
+          <Button icon={Plus} onClick={() => {
+            setSelectedProduct(null);
+            setIsModalOpen(true);
+          }}>
             Novo Produto
           </Button>
         }
@@ -157,6 +191,16 @@ export function Inventory() {
         data={filteredInventory}
         loading={loading}
         emptyMessage="Nenhum produto encontrado"
+      />
+
+      <ProductModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        onSave={handleSave}
+        product={selectedProduct}
       />
     </div>
   );

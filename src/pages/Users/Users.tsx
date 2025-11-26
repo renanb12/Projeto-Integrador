@@ -4,9 +4,11 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Table } from '../../components/common/Table';
+import { UserModal } from '../../components/UserModal/UserModal';
+import api from '../../services/api';
 
 interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: 'admin' | 'manager' | 'operator';
@@ -19,6 +21,8 @@ export function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -27,39 +31,45 @@ export function Users() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      setUsers([
-        {
-          id: '1',
-          name: 'Admin User',
-          email: 'admin@example.com',
-          role: 'admin',
-          status: 'active',
-          last_login: '2024-01-30 14:32',
-          created_at: '2024-01-01'
-        },
-        {
-          id: '2',
-          name: 'Manager User',
-          email: 'manager@example.com',
-          role: 'manager',
-          status: 'active',
-          last_login: '2024-01-29 10:15',
-          created_at: '2024-01-05'
-        },
-        {
-          id: '3',
-          name: 'Operator User',
-          email: 'operator@example.com',
-          role: 'operator',
-          status: 'active',
-          last_login: '2024-01-30 09:00',
-          created_at: '2024-01-10'
-        }
-      ]);
+      const response = await api.get('/users');
+      setUsers(response.data);
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSave = async (userData: any) => {
+    try {
+      if (selectedUser) {
+        await api.put(`/users/${selectedUser.id}`, userData);
+      } else {
+        await api.post('/users', userData);
+      }
+      await loadUsers();
+      setIsModalOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      console.error('Error saving user:', error);
+      throw new Error(error.response?.data?.message || 'Erro ao salvar usuário');
+    }
+  };
+
+  const handleEdit = (user: User) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Tem certeza que deseja excluir este usuário?')) {
+      try {
+        await api.delete(`/users/${id}`);
+        await loadUsers();
+      } catch (error: any) {
+        console.error('Error deleting user:', error);
+        alert(error.response?.data?.message || 'Erro ao excluir usuário');
+      }
     }
   };
 
@@ -103,18 +113,30 @@ export function Users() {
     {
       key: 'last_login',
       label: 'Último Acesso',
-      render: (value: any) => new Date(value).toLocaleString('pt-BR')
+      render: (value: any) => value ? new Date(value).toLocaleString('pt-BR') : 'Nunca'
     },
     {
       key: 'actions',
       label: 'Ações',
       className: 'text-right',
-      render: () => (
+      render: (_: any, row: User) => (
         <div className="flex gap-2 justify-end">
-          <button className="text-blue-600 hover:text-blue-800">
+          <button
+            className="text-blue-600 hover:text-blue-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row);
+            }}
+          >
             <Edit className="w-5 h-5" />
           </button>
-          <button className="text-red-600 hover:text-red-800">
+          <button
+            className="text-red-600 hover:text-red-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row.id);
+            }}
+          >
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
@@ -128,7 +150,10 @@ export function Users() {
         title="Usuários"
         subtitle={`${users.length} usuários cadastrados`}
         action={
-          <Button icon={Plus} onClick={() => {}}>
+          <Button icon={Plus} onClick={() => {
+            setSelectedUser(null);
+            setIsModalOpen(true);
+          }}>
             Novo Usuário
           </Button>
         }
@@ -147,6 +172,16 @@ export function Users() {
         data={filteredUsers}
         loading={loading}
         emptyMessage="Nenhum usuário encontrado"
+      />
+
+      <UserModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedUser(null);
+        }}
+        onSave={handleSave}
+        user={selectedUser}
       />
     </div>
   );

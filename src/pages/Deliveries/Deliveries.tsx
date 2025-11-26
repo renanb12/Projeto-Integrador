@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Truck, MapPin, Clock } from 'lucide-react';
+import { Plus, Truck, MapPin, Clock, Edit, Trash2 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Table } from '../../components/common/Table';
 import { StatCard } from '../../components/common/StatCard';
+import { DeliveryModal } from '../../components/DeliveryModal/DeliveryModal';
+import api from '../../services/api';
 
 interface Delivery {
-  id: string;
+  id: number;
   route_name: string;
-  driver: string;
+  driver_name: string;
   vehicle: string;
   stops: number;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -22,6 +24,8 @@ export function Deliveries() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
 
   useEffect(() => {
     loadDeliveries();
@@ -30,39 +34,8 @@ export function Deliveries() {
   const loadDeliveries = async () => {
     try {
       setLoading(true);
-      setDeliveries([
-        {
-          id: '1',
-          route_name: 'Rota Centro',
-          driver: 'Carlos Silva',
-          vehicle: 'ABC-1234',
-          stops: 8,
-          status: 'in_progress',
-          departure_time: '08:00',
-          estimated_arrival: '14:00',
-          current_location: 'Av. Ipiranga, 1200'
-        },
-        {
-          id: '2',
-          route_name: 'Rota Zona Sul',
-          driver: 'João Santos',
-          vehicle: 'XYZ-5678',
-          stops: 12,
-          status: 'pending',
-          departure_time: '09:00',
-          estimated_arrival: '16:00'
-        },
-        {
-          id: '3',
-          route_name: 'Rota Norte',
-          driver: 'Pedro Lima',
-          vehicle: 'DEF-9012',
-          stops: 6,
-          status: 'completed',
-          departure_time: '07:00',
-          estimated_arrival: '12:00'
-        }
-      ]);
+      const response = await api.get('/deliveries');
+      setDeliveries(response.data);
     } catch (error) {
       console.error('Error loading deliveries:', error);
     } finally {
@@ -70,17 +43,50 @@ export function Deliveries() {
     }
   };
 
+  const handleSave = async (deliveryData: any) => {
+    try {
+      if (selectedDelivery) {
+        await api.put(`/deliveries/${selectedDelivery.id}`, deliveryData);
+      } else {
+        await api.post('/deliveries', deliveryData);
+      }
+      await loadDeliveries();
+      setIsModalOpen(false);
+      setSelectedDelivery(null);
+    } catch (error: any) {
+      console.error('Error saving delivery:', error);
+      throw new Error(error.response?.data?.message || 'Erro ao salvar entrega');
+    }
+  };
+
+  const handleEdit = (delivery: Delivery) => {
+    setSelectedDelivery(delivery);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Tem certeza que deseja excluir esta rota?')) {
+      try {
+        await api.delete(`/deliveries/${id}`);
+        await loadDeliveries();
+      } catch (error) {
+        console.error('Error deleting delivery:', error);
+        alert('Erro ao excluir rota');
+      }
+    }
+  };
+
   const filteredDeliveries = deliveries.filter(delivery =>
     delivery.route_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.vehicle.includes(searchTerm)
+    delivery.driver_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (delivery.vehicle && delivery.vehicle.includes(searchTerm))
   );
 
   const stats = {
     pending: deliveries.filter(d => d.status === 'pending').length,
     in_progress: deliveries.filter(d => d.status === 'in_progress').length,
     completed: deliveries.filter(d => d.status === 'completed').length,
-    total_stops: deliveries.reduce((acc, d) => acc + d.stops, 0)
+    total_stops: deliveries.reduce((acc, d) => acc + (d.stops || 0), 0)
   };
 
   const getStatusBadge = (status: string) => {
@@ -95,16 +101,26 @@ export function Deliveries() {
 
   const columns = [
     { key: 'route_name', label: 'Rota' },
-    { key: 'driver', label: 'Motorista' },
-    { key: 'vehicle', label: 'Veículo' },
-    { key: 'stops', label: 'Paradas' },
+    { key: 'driver_name', label: 'Motorista' },
+    {
+      key: 'vehicle',
+      label: 'Veículo',
+      render: (value: any) => value || '-'
+    },
+    {
+      key: 'stops',
+      label: 'Paradas',
+      render: (value: any) => value || 0
+    },
     {
       key: 'departure_time',
-      label: 'Partida',
+      label: 'Horários',
       render: (value: any, row: Delivery) => (
         <div className="text-sm">
-          <div>{value}</div>
-          <div className="text-gray-500 text-xs">Est: {row.estimated_arrival}</div>
+          <div>{value || '-'}</div>
+          {row.estimated_arrival && (
+            <div className="text-gray-500 text-xs">Est: {row.estimated_arrival}</div>
+          )}
         </div>
       )
     },
@@ -115,8 +131,35 @@ export function Deliveries() {
     },
     {
       key: 'current_location',
-      label: 'Localização Atual',
+      label: 'Localização',
       render: (value: any) => value || '-'
+    },
+    {
+      key: 'actions',
+      label: 'Ações',
+      className: 'text-right',
+      render: (_: any, row: Delivery) => (
+        <div className="flex gap-2 justify-end">
+          <button
+            className="text-blue-600 hover:text-blue-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row);
+            }}
+          >
+            <Edit className="w-5 h-5" />
+          </button>
+          <button
+            className="text-red-600 hover:text-red-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row.id);
+            }}
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
+      )
     }
   ];
 
@@ -126,7 +169,10 @@ export function Deliveries() {
         title="Entregas"
         subtitle={`${deliveries.length} rotas de entrega`}
         action={
-          <Button icon={Plus} onClick={() => {}}>
+          <Button icon={Plus} onClick={() => {
+            setSelectedDelivery(null);
+            setIsModalOpen(true);
+          }}>
             Nova Rota
           </Button>
         }
@@ -152,6 +198,16 @@ export function Deliveries() {
         data={filteredDeliveries}
         loading={loading}
         emptyMessage="Nenhuma entrega encontrada"
+      />
+
+      <DeliveryModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedDelivery(null);
+        }}
+        onSave={handleSave}
+        delivery={selectedDelivery}
       />
     </div>
   );

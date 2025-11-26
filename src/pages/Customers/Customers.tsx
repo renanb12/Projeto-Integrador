@@ -4,12 +4,15 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Table } from '../../components/common/Table';
-import { fetchCustomers, deleteCustomer, Customer } from '../../services/customerService';
+import { CustomerModal } from '../../components/CustomerModal/CustomerModal';
+import { fetchCustomers, deleteCustomer, createCustomer, updateCustomer, Customer } from '../../services/customerService';
 
 export function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
     loadCustomers();
@@ -27,11 +30,32 @@ export function Customers() {
     }
   };
 
+  const handleSave = async (customerData: any) => {
+    try {
+      if (selectedCustomer) {
+        await updateCustomer(selectedCustomer.id.toString(), customerData);
+      } else {
+        await createCustomer(customerData);
+      }
+      await loadCustomers();
+      setIsModalOpen(false);
+      setSelectedCustomer(null);
+    } catch (error: any) {
+      console.error('Error saving customer:', error);
+      throw new Error(error.response?.data?.message || 'Erro ao salvar cliente');
+    }
+  };
+
+  const handleEdit = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsModalOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
       try {
         await deleteCustomer(id);
-        setCustomers(customers.filter(c => c.id !== id));
+        setCustomers(customers.filter(c => c.id.toString() !== id));
       } catch (error) {
         console.error('Error deleting customer:', error);
         alert('Erro ao excluir cliente');
@@ -61,7 +85,13 @@ export function Customers() {
       className: 'text-right',
       render: (_: any, row: Customer) => (
         <div className="flex gap-2 justify-end">
-          <button className="text-blue-600 hover:text-blue-800">
+          <button
+            className="text-blue-600 hover:text-blue-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row);
+            }}
+          >
             <Edit className="w-5 h-5" />
           </button>
           <button
@@ -84,7 +114,10 @@ export function Customers() {
         title="Clientes"
         subtitle={`${customers.length} clientes cadastrados`}
         action={
-          <Button icon={Plus} onClick={() => {}}>
+          <Button icon={Plus} onClick={() => {
+            setSelectedCustomer(null);
+            setIsModalOpen(true);
+          }}>
             Novo Cliente
           </Button>
         }
@@ -103,6 +136,16 @@ export function Customers() {
         data={filteredCustomers}
         loading={loading}
         emptyMessage="Nenhum cliente encontrado"
+      />
+
+      <CustomerModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        onSave={handleSave}
+        customer={selectedCustomer}
       />
     </div>
   );
