@@ -16,15 +16,22 @@ router.post('/login', async (req, res) => {
     }
 
     const user = users[0];
+
+    if (user.status === 'inactive') {
+      return res.status(403).json({ message: 'Usuário inativo' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Email ou senha inválidos' });
     }
 
+    await pool.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+
     const token = jwt.sign(
-      { id: user.id },
-      'your_jwt_secret', // In production, use environment variable
+      { id: user.id, role: user.role },
+      'your_jwt_secret',
       { expiresIn: '24h' }
     );
 
@@ -33,7 +40,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        role: user.role
       }
     });
   } catch (error) {

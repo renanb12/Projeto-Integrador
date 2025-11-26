@@ -4,18 +4,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Table } from '../../components/common/Table';
-
-interface Customer {
-  id: string;
-  name: string;
-  document: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  created_at: string;
-}
+import { fetchCustomers, deleteCustomer, Customer } from '../../services/customerService';
 
 export function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -29,34 +18,24 @@ export function Customers() {
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      setCustomers([
-        {
-          id: '1',
-          name: 'João Silva',
-          document: '123.456.789-00',
-          email: 'joao@example.com',
-          phone: '(51) 99999-9999',
-          address: 'Rua A, 123',
-          city: 'Porto Alegre',
-          state: 'RS',
-          created_at: '2024-01-15'
-        },
-        {
-          id: '2',
-          name: 'Maria Santos',
-          document: '987.654.321-00',
-          email: 'maria@example.com',
-          phone: '(51) 98888-8888',
-          address: 'Av. B, 456',
-          city: 'Canoas',
-          state: 'RS',
-          created_at: '2024-02-10'
-        }
-      ]);
+      const data = await fetchCustomers();
+      setCustomers(data);
     } catch (error) {
       console.error('Error loading customers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
+      try {
+        await deleteCustomer(id);
+        setCustomers(customers.filter(c => c.id !== id));
+      } catch (error) {
+        console.error('Error deleting customer:', error);
+        alert('Erro ao excluir cliente');
+      }
     }
   };
 
@@ -80,12 +59,18 @@ export function Customers() {
       key: 'actions',
       label: 'Ações',
       className: 'text-right',
-      render: () => (
+      render: (_: any, row: Customer) => (
         <div className="flex gap-2 justify-end">
           <button className="text-blue-600 hover:text-blue-800">
             <Edit className="w-5 h-5" />
           </button>
-          <button className="text-red-600 hover:text-red-800">
+          <button
+            className="text-red-600 hover:text-red-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row.id.toString());
+            }}
+          >
             <Trash2 className="w-5 h-5" />
           </button>
         </div>

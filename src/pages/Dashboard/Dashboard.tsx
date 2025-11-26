@@ -3,6 +3,7 @@ import { Package, TrendingUp, TrendingDown, Users, DollarSign, ShoppingCart } fr
 import { StatCard } from '../../components/common/StatCard';
 import { Card } from '../../components/common/Card';
 import { PageHeader } from '../../components/common/PageHeader';
+import { fetchDashboardStats, fetchRecentActivities } from '../../services/dashboardService';
 
 export function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -14,6 +15,7 @@ export function Dashboard() {
     entriesThisMonth: 0,
     exitsThisMonth: 0
   });
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -22,14 +24,12 @@ export function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      setStats({
-        totalProducts: 127,
-        totalRevenue: 45678.90,
-        totalCustomers: 42,
-        pendingDeliveries: 8,
-        entriesThisMonth: 23,
-        exitsThisMonth: 45
-      });
+      const [statsData, activitiesData] = await Promise.all([
+        fetchDashboardStats(),
+        fetchRecentActivities()
+      ]);
+      setStats(statsData);
+      setActivities(activitiesData);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
@@ -93,30 +93,50 @@ export function Dashboard() {
         <Card>
           <h3 className="text-lg font-semibold mb-4">Atividades Recentes</h3>
           <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((item) => (
-              <div key={item} className="flex items-center gap-3 pb-3 border-b last:border-b-0">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Nova entrada registrada</p>
-                  <p className="text-xs text-gray-500">Há {item} hora(s)</p>
+            {loading ? (
+              <p className="text-sm text-gray-500">Carregando...</p>
+            ) : activities.length === 0 ? (
+              <p className="text-sm text-gray-500">Nenhuma atividade recente</p>
+            ) : (
+              activities.map((activity) => (
+                <div key={activity.id} className="flex items-center gap-3 pb-3 border-b last:border-b-0">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{activity.type} - {activity.status}</p>
+                    <p className="text-xs text-gray-500">{activity.description || 'Sem descrição'}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
         <Card>
-          <h3 className="text-lg font-semibold mb-4">Produtos em Baixo Estoque</h3>
+          <h3 className="text-lg font-semibold mb-4">Resumo do Sistema</h3>
           <div className="space-y-3">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="flex items-center justify-between pb-3 border-b last:border-b-0">
-                <div>
-                  <p className="text-sm font-medium">Produto {item}</p>
-                  <p className="text-xs text-gray-500">Estoque: {item * 5} unidades</p>
-                </div>
-                <span className="text-xs px-2 py-1 bg-red-100 text-red-600 rounded">Baixo</span>
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <p className="text-sm font-medium">Total em Estoque</p>
+                <p className="text-xs text-gray-500">{stats.totalProducts} produtos</p>
               </div>
-            ))}
+              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded">Ativo</span>
+            </div>
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <p className="text-sm font-medium">Faturamento do Mês</p>
+                <p className="text-xs text-gray-500">
+                  R$ {Number(stats.totalRevenue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <span className="text-xs px-2 py-1 bg-green-100 text-green-600 rounded">Crescimento</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Entregas Pendentes</p>
+                <p className="text-xs text-gray-500">{stats.pendingDeliveries} rotas</p>
+              </div>
+              <span className="text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded">Pendente</span>
+            </div>
           </div>
         </Card>
       </div>
